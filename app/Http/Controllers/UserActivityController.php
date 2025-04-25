@@ -23,9 +23,9 @@ class UserActivityController extends Controller
         $filter = $request->filter;
         $search = $request->search;
 
-        $query = User::select('users.id', 'users.name', DB::raw('SUM(user_activities.points) as total_points'))
-            ->join('user_activities', 'users.id', '=', 'user_activities.user_id')
-            ->groupBy('users.id', 'users.name');
+        $query = User::select('users.id', 'users.name', 'users.total_points', 'users.rank')
+            ->leftJoin('user_activities', 'users.id', '=', 'user_activities.user_id')
+            ->groupBy('users.id', 'users.name', 'users.total_points', 'users.rank');
 
         // Filter by day, month, year
         if ($filter === 'day') {
@@ -46,7 +46,7 @@ class UserActivityController extends Controller
 
         // Assign ranks
         $rankedUsers = $users->map(function ($user, $index) {
-            $user->rank = $index + 1;
+            // $user->rank = $index + 1;
             return $user;
         });
 
@@ -61,6 +61,9 @@ class UserActivityController extends Controller
 
     public function recalculate()
     {
+        // Following query will return user_Id, total_points of each user
+        // and order them by total_points in descending order
+        // and update the rank of each user in the user_activities table
         $userPoints = DB::table('user_activities')
             ->select('user_id', DB::raw('SUM(points) as total_points'))
             ->groupBy('user_id')
@@ -68,13 +71,43 @@ class UserActivityController extends Controller
             ->get();
 
         $rank = 1;
-        foreach ($userPoints as $user) {
-            DB::table('user_activities')
-                ->where('user_id', $user->user_id)
-                ->update(['rank' => $rank]);
+        $lastPoints = null;
+        // $index = 0;
+        for($index = 0; $index < count($userPoints); $index++){
+            if($index > 0){
+                $lastPoints = $userPoints[$index - 1]->total_points;
+            }
 
-            $rank++;
+            //If points are same, then rank will be same
+
+            if($lastPoints && $lastPoints != $userPoints[$index]->total_points) {
+                $rank++;
+            }
+            DB::table('users')
+                ->where('id', $userPoints[$index]->user_id)
+                ->update([
+                    'rank' => $rank,
+                    'total_points' => $userPoints[$index]->total_points,
+                ]);
+            // DB::table('user_activities')
+            //     ->where('user_id', $userPoints[$index]->user_id)
+            //     ->update(['rank' => $rank]);
+
         }
+        // foreach ($userPoints as $user) {
+        //     if($index > 0){
+        //         $lastPoints = $userPoints[$index - 1]->total_points;
+        //     }
+        //     //If points are same, then rank will be same
+        //     if($lastPoints && $lastPoints != $user->total_points) {
+        //         $rank++;
+        //     }
+        //     DB::table('user_activities')
+        //         ->where('user_id', $user->user_id)
+        //         ->update(['rank' => $rank]);
+
+        //         $index++;
+        // }
 
         return redirect()->route('leaderboard.index')->with('success', 'Leaderboard recalculated successfully!');
     }

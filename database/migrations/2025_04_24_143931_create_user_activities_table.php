@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->string('activity_type');
             $table->integer('points')->default(20);
-            $table->string('rank')->nullable();
+            // $table->string('rank')->nullable();
             $table->timestamps();
         });
     }
